@@ -34,6 +34,9 @@ jobs:
           ANTHROPIC.KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           config.model: "anthropic/claude-opus-4-8"
           config.fallback_models: '["anthropic/claude-sonnet-4-6"]'
+          # claude-opus-4-8 is newer than PR-Agent's bundled model registry, so its
+          # token limit must be set explicitly (claude-sonnet-4-6 is already registered).
+          config.custom_model_max_tokens: "200000"
           # Scoped to the caller repo automatically via workflow_call.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # --- Review only; keep re-reviews in one updating comment ---
