@@ -1,0 +1,51 @@
+name: PR Agent (reusable)
+
+# Central reusable workflow for CF projects.
+# Each project repo calls this via `uses:` (workflow_call). It runs in the
+# CALLER repo's context, so PR-Agent reads and comments on the caller's PR
+# using the caller's automatic GITHUB_TOKEN. No cross-repo token needed.
+on:
+  workflow_call:
+    inputs:
+      project:
+        description: "Project key, e.g. insurance-back, residents-front, web"
+        type: string
+        required: true
+    secrets:
+      OPENAI_KEY:
+        required: true
+
+jobs:
+  pr_agent:
+    # Skip events triggered by bots to avoid feedback loops.
+    if: ${{ github.event.sender.type != 'Bot' }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
+    name: PR Agent
+    steps:
+      - name: Run PR-Agent
+        uses: qodo-ai/pr-agent@main
+        env:
+          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+          # Automatically scoped to the caller repo when called via workflow_call.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          # --- Auto commands: review only (no describe / no improve) ---
+          github_action_config.auto_review: "true"
+          github_action_config.auto_describe: "false"
+          github_action_config.auto_improve: "false"
+
+          # PR actions that auto-trigger a run. review_requested is included so a
+          # re-requested reviewer re-runs the review. Add "synchronize" here if you
+          # also want auto-runs on every push (debounced by the caller's concurrency).
+          github_action_config.pr_actions: '["opened", "reopened", "ready_for_review", "review_requested"]'
+
+          # --- Keep every re-review in the SAME comment (one updating thread) ---
+          pr_reviewer.persistent_comment: "true"
+          pr_reviewer.final_update_message: "true"
+
+          # --- Per-project reviewer customization (see also each repo's .pr_agent.toml) ---
+          pr_reviewer.extra_instructions: "You are reviewing the '${{ inputs.project }}' project. Apply its conventions."
