@@ -37,6 +37,10 @@ jobs:
           # claude-opus-4-8 is newer than PR-Agent's bundled model registry, so its
           # token limit must be set explicitly (claude-sonnet-4-6 is already registered).
           config.custom_model_max_tokens: "200000"
+          # Opus 4.8 (4.7+ family) rejects the `temperature` param with a 400. PR-Agent
+          # sends temperature:0.2 by default; this flag makes litellm_ai_handler skip
+          # temperature so Opus actually runs instead of failing over to the Sonnet fallback.
+          config.custom_reasoning_model: "true"
           # Scoped to the caller repo automatically via workflow_call.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # --- Review only; keep re-reviews in one updating comment ---
