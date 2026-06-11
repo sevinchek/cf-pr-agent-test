@@ -24,6 +24,7 @@ jobs:
       issues: write
       pull-requests: write
       contents: write
+      statuses: write          # required to post the security-gate commit status
     name: PR Agent
     steps:
       - name: Run PR-Agent
@@ -50,3 +51,34 @@ jobs:
           pr_reviewer.persistent_comment: "true"
           pr_reviewer.final_update_message: "true"
           pr_reviewer.extra_instructions: "You are reviewing the '${{ inputs.project }}' project."
+
+      - name: Security gate (blocking status check)
+        # PR-Agent only comments; it does NOT post a status check. This step turns the
+        # review's security verdict into a commit status (`ai-review/security`) that can be
+        # marked as a Required check in branch protection to block merges when concerns exist.
+        if: ${{ github.event_name == 'pull_request' || github.event.issue.pull_request }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          SHA=$(gh api "repos/$REPO/pulls/$PR" --jq '.head.sha')
+          # Grab the latest persistent "PR Reviewer Guide" comment (skip the update notices).
+          BODY=$(gh api "repos/$REPO/issues/$PR/comments" \
+            --jq '[.[] | select(.user.login=="github-actions[bot]") | .body | select(contains("PR Reviewer Guide"))] | last // ""')
+          if [ -z "$BODY" ]; then
+            echo "No PR Reviewer Guide comment found; leaving gate pending."
+            exit 0
+          fi
+          if printf '%s' "$BODY" | grep -q "No security concerns identified"; then
+            STATE=success; DESC="No security concerns identified"
+          else
+            STATE=failure; DESC="Security concerns found - see PR Reviewer Guide"
+          fi
+          echo "Security gate result: $STATE"
+          gh api -X POST "repos/$REPO/statuses/$SHA" \
+            -f state="$STATE" \
+            -f context="ai-review/security" \
+            -f description="$DESC" \
+            -f target_url="https://github.com/$REPO/pull/$PR"
