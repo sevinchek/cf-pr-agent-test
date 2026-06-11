@@ -12,7 +12,7 @@ on:
         type: string
         required: true
     secrets:
-      OPENAI_KEY:
+      ANTHROPIC_API_KEY:
         required: true
 
 jobs:
@@ -29,6 +29,17 @@ jobs:
       - name: Run PR-Agent
         uses: qodo-ai/pr-agent@main
         env:
-          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
-          # Automatically scoped to the caller repo when called via workflow_call.
+          # --- Anthropic Claude via litellm ---
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC.KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          config.model: "anthropic/claude-opus-4-8"
+          config.fallback_models: '["anthropic/claude-sonnet-4-6"]'
+          # Scoped to the caller repo automatically via workflow_call.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # --- Review only; keep re-reviews in one updating comment ---
+          github_action_config.auto_review: "true"
+          github_action_config.auto_describe: "false"
+          github_action_config.auto_improve: "false"
+          pr_reviewer.persistent_comment: "true"
+          pr_reviewer.final_update_message: "true"
+          pr_reviewer.extra_instructions: "You are reviewing the '${{ inputs.project }}' project."
