@@ -36,6 +36,8 @@ jobs:
           config.custom_model_max_tokens: "200000"
           config.custom_reasoning_model: "true"
 
-          # --- Comportamiento ---
+          # --- Comportamiento: solo review (describe/improve vienen on por defecto) ---
           github_action_config.auto_review: "true"
+          github_action_config.auto_describe: "false"
+          github_action_config.auto_improve: "false"
           pr_reviewer.persistent_comment: "true"
