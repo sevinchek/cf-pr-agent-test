@@ -1,14 +1,12 @@
 name: PR Agent (reusable)
 
-# Central reusable workflow for CF projects.
-# Each project repo calls this via `uses:` (workflow_call). It runs in the
-# CALLER repo's context, so PR-Agent reads and comments on the caller's PR
-# using the caller's automatic GITHUB_TOKEN. No cross-repo token needed.
+# Central reusable workflow (stand-in del hub de la org, para probar en repos personales).
+# Cada repo lo invoca con `uses:` (workflow_call) y corre en el contexto del caller.
 on:
   workflow_call:
     inputs:
       project:
-        description: "Project key, e.g. insurance-back, residents-front, web"
+        description: "Nombre del proyecto que invoca (solo para observabilidad)"
         type: string
         required: true
     secrets:
@@ -17,68 +15,27 @@ on:
 
 jobs:
   pr_agent:
-    # Skip events triggered by bots to avoid feedback loops.
+    # No reaccionar a acciones de bots (evita loops con el propio comentario).
     if: ${{ github.event.sender.type != 'Bot' }}
     runs-on: ubuntu-latest
     permissions:
+      contents: write
       issues: write
       pull-requests: write
-      contents: write
-      statuses: write          # required to post the security-gate commit status
-    name: PR Agent
     steps:
-      - name: Run PR-Agent
-        uses: qodo-ai/pr-agent@main
+      - name: PR-Agent review (${{ inputs.project }})
+        # Fork propio de la empresa (sobre The-PR-Agent/pr-agent).
+        uses: ComunidadFeliz/plat-pr-agent-fork@main
         env:
-          # --- Anthropic Claude via litellm ---
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ANTHROPIC.KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          config.model: "anthropic/claude-opus-4-8"
-          config.fallback_models: '["anthropic/claude-sonnet-4-6"]'
-          # claude-opus-4-8 is newer than PR-Agent's bundled model registry, so its
-          # token limit must be set explicitly (claude-sonnet-4-6 is already registered).
-          config.custom_model_max_tokens: "200000"
-          # Opus 4.8 (4.7+ family) rejects the `temperature` param with a 400. PR-Agent
-          # sends temperature:0.2 by default; this flag makes litellm_ai_handler skip
-          # temperature so Opus actually runs instead of failing over to the Sonnet fallback.
-          config.custom_reasoning_model: "true"
-          # Scoped to the caller repo automatically via workflow_call.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # --- Review only; keep re-reviews in one updating comment ---
-          github_action_config.auto_review: "true"
-          github_action_config.auto_describe: "false"
-          github_action_config.auto_improve: "false"
-          pr_reviewer.persistent_comment: "true"
-          pr_reviewer.final_update_message: "true"
-          pr_reviewer.extra_instructions: "You are reviewing the '${{ inputs.project }}' project."
 
-      - name: Security gate (blocking status check)
-        # PR-Agent only comments; it does NOT post a status check. This step turns the
-        # review's security verdict into a commit status (`ai-review/security`) that can be
-        # marked as a Required check in branch protection to block merges when concerns exist.
-        if: ${{ github.event_name == 'pull_request' || github.event.issue.pull_request }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number || github.event.issue.number }}
-        run: |
-          set -euo pipefail
-          SHA=$(gh api "repos/$REPO/pulls/$PR" --jq '.head.sha')
-          # Grab the latest persistent "PR Reviewer Guide" comment (skip the update notices).
-          BODY=$(gh api "repos/$REPO/issues/$PR/comments" \
-            --jq '[.[] | select(.user.login=="github-actions[bot]") | .body | select(contains("PR Reviewer Guide"))] | last // ""')
-          if [ -z "$BODY" ]; then
-            echo "No PR Reviewer Guide comment found; leaving gate pending."
-            exit 0
-          fi
-          if printf '%s' "$BODY" | grep -q "No security concerns identified"; then
-            STATE=success; DESC="No security concerns identified"
-          else
-            STATE=failure; DESC="Security concerns found - see PR Reviewer Guide"
-          fi
-          echo "Security gate result: $STATE"
-          gh api -X POST "repos/$REPO/statuses/$SHA" \
-            -f state="$STATE" \
-            -f context="ai-review/security" \
-            -f description="$DESC" \
-            -f target_url="https://github.com/$REPO/pull/$PR"
+          # --- Modelo ---
+          config.model: "anthropic/claude-sonnet-4-6"
+          config.fallback_models: '["anthropic/claude-opus-4-8"]'   # respaldo solo si el primario falla
+          config.custom_model_max_tokens: "200000"
+          config.custom_reasoning_model: "true"
+
+          # --- Comportamiento ---
+          github_action_config.auto_review: "true"
+          pr_reviewer.persistent_comment: "true"
