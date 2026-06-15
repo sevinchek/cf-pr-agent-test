@@ -28,6 +28,10 @@ jobs:
         uses: ComunidadFeliz/plat-pr-agent-fork@main
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # PR-Agent (dynaconf) lee la key de Anthropic desde el ajuste `anthropic.key`,
+          # no desde ANTHROPIC_API_KEY a secas. Sin esto, litellm manda una key vacía
+          # → "invalid x-api-key" aunque la credencial sea válida.
+          ANTHROPIC.KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
           # --- Modelo ---
