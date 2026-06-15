@@ -24,8 +24,8 @@ jobs:
       pull-requests: write
     steps:
       - name: PR-Agent review (${{ inputs.project }})
-        # Fork propio de la empresa (sobre The-PR-Agent/pr-agent).
-        uses: ComunidadFeliz/plat-pr-agent-fork@main
+        # EVALUACIÓN build-from-source (rama PR #2). Revertir a @main al terminar.
+        uses: ComunidadFeliz/plat-pr-agent-fork@PLAT/action-build-from-source
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # PR-Agent (dynaconf) lee la key de Anthropic desde el ajuste `anthropic.key`,
